@@ -1,113 +1,192 @@
-import Image from 'next/image'
+"use client";
+import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
 
 export default function Home() {
+  const [storyStart, setStoryStart] = useState("");
+  const [arrayOfText, setArrayOfText] = useState<string[]>([]);
+  const [creativitySlider, setCreativitySlider] = useState<string>("40");
+  const [isLoading, setIsLoading] = useState(false)
+  const [unhingedMode, setUnhingedMode] = useState(false);
+  const [genre, setGenre] = useState("Horror");
+  const [numEnteredWords, setNumEnteredWords] = useState(0)
+  const scrollToRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    console.log(creativitySlider);
+  }, [creativitySlider]);
+
+  useEffect(() => {
+    console.log("unhinged mode is ", unhingedMode ? "on" : "off");
+  }, [unhingedMode]);
+
+  const completeStory = async () => {
+    setArrayOfText([])
+    setIsLoading(true)
+    try {
+      const response = await fetch("http://localhost:11434/api/generate", {
+        method: "POST",
+        body: JSON.stringify({
+          model: "mistral",
+          prompt: `write a ${genre} story that starts with these words: ${storyStart}. Your response should start from these words too`,
+          options: {
+            temperature: unhingedMode ? 500 : parseInt(creativitySlider) / 100,
+          },
+        }),
+      });
+
+      if (response.body) {
+        const reader = response.body!.getReader();
+        scrollToRef.current?.scrollIntoView()
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            break;
+          }
+
+          // convert the chunk of data to text and parse JSON)
+          const text = new TextDecoder().decode(value);
+          const responseObject = JSON.parse(text);
+
+          if (responseObject.done === false) {
+            if (arrayOfText) {
+              console.log("this ran");
+              setArrayOfText((prev) => [...prev!, responseObject.response]);
+            } else {
+              setArrayOfText([responseObject.response]);
+            }
+            
+
+          }
+          console.log(responseObject);
+          if(responseObject.error){
+            window.alert(responseObject.error)
+          }
+        }
+
+        // Close the reader when done
+        reader.releaseLock();
+        setIsLoading(false)
+      } else {
+        throw Error;
+      }
+      // console.log(await response.json());
+    } catch (error) {
+      console.error("Error occurred during API call:", error);
+      window.alert("Please make sure you've started ollama")
+      setIsLoading(false)
+    }
+  };
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <main className="flex min-h-screen flex-col items-center px-32 py-12 bg-gray-900">
+      <div className="text-3xl mb-12">Revengeance AI</div>
+
+
+      <div className="flex  flex-col  px-32 py-4 gap-10 w-full justify-center">
+        <div className=" bg-slate-800 rounded-md p-4 pb-6 flex flex-col gap-2 border-red-500 storystarter">
+          <label
+            htmlFor="startingLine"
+            className=" flex flex-col  justify-center"
           >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
+            Start your story:
+          </label>
+          <div className="flex">
+            <input
+              name="startingLine"
+              value={storyStart}
+              onChange={(event) => {
+
+                if (event.target.value.split(" ").length < 16) {
+                  setStoryStart(event.target.value);
+                  if (event.target.value===""){
+                    setNumEnteredWords(0)
+                  }
+                  else{
+                  setNumEnteredWords(event.target.value.split(" ").length);
+                  }
+                }
+              }}
+              className="text-black h-8 px-1 w-full rounded-l-md select-none outline-none disabled:bg-white "
             />
-          </a>
+            <div className="flex bg-white rounded-r-md">
+              <span className="h-min px-1 self-end rounded-r-md text-gray-700 text-sm align-baseline">
+                {numEnteredWords}/15
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className=" flex  justify-evenly gap-2">
+
+          <div className="  flex p-3 bg-slate-800 gap-4 rounded-md  justify-center">
+            <span className="w-max flex self-center px-2 py-1  ">
+              Select a genre:{" "}
+            </span>
+            <select
+              value={genre}
+              className=" outline-none h-min self-center  hover:cursor-pointer border text-md rounded-lg  block p-2.5 bg-gray-700 border-gray-600 placeholder-gray-400 text-white focus:ring-blue-500"
+              onChange={(event) => {
+                setGenre(event.target.value);
+              }}
+            >
+              <option>Horror</option>
+              <option>Sci-Fi</option>
+              <option>Drama</option>
+              <option>Thriller</option>
+              <option>Comedy</option>
+              <option>Romance</option>
+            </select>
+          </div>
+
+          <div className=" flex flex-col gap-2  bg-slate-800 p-4 rounded-md  justify-center">
+            <div className="flex gap-4     justify-center">
+              <span>How creative?</span>
+              <input
+                className={" accent-blue-500 select-none w-min self-center"}
+                disabled={unhingedMode}
+                type="range"
+                min="0"
+                max="200"
+                value={creativitySlider}
+                onChange={(event) => setCreativitySlider(event.target.value)}
+              />
+            </div>
+            {creativitySlider === "200" ? (
+              <div
+                className={` flex justify-center self-center gap-1`}
+              >
+                <input
+                  type="checkbox"
+                  className=" accent-red-400 "
+                  checked={unhingedMode}
+                  onChange={() => setUnhingedMode(!unhingedMode)}
+                />
+                <span className="text-red-400">Unhinged mode</span>
+              </div>
+            ) : (
+              ""
+            )}
+          </div>
+        </div>
+
+        <div className="self-center">
+        <button className="bg-blue-600  w-min px-8 py-2 rounded-md disabled:cursor-not-allowed disabled:bg-blue-400" onClick={completeStory} disabled={isLoading}>
+          {isLoading?<span className="flex rounded-full self-center border-t-white border-2  box-border animate-spin h-6 w-6"></span>:unhingedMode?"Unleash!":"Go!"}        </button>
         </div>
       </div>
 
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
+      <div className="px-32 mt-8 py-4 gap-10 w-full" ref={scrollToRef}>
+        <div className={`rounded-xl  text-lg p-8 text-center  w-full text-slate-300 ${arrayOfText.length>0?"border-2 border-slate-700 bg-slate-950 ":""}`}>
+        
 
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
+        {arrayOfText != undefined
+          ? arrayOfText.map((response, index) => (
+              <span key={index}>{response}</span>
+            ))
+          : ""}
+          </div>
       </div>
     </main>
-  )
+  );
 }
